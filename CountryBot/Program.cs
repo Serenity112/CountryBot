@@ -4,7 +4,7 @@
     {
         static void Main(string[] args)
         {
-           string token  = "your_token";
+           string token  = "5723619088:AAHNrrTUIQ9cmoC70dEWZhnv_l-vhGfQGnA";
 
             var bot = new BotManager(token);
 

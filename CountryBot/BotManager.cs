@@ -10,72 +10,73 @@ using System.Linq;
 
 namespace CountryBot
 {
+    // Keys
+    public enum WorldSideKey
+    {
+        World,
+        Europe,
+        Asia,
+        Africa,
+        NorthAmerica,
+        SouthAmerica,
+        Oceania,
+    }   
+    //State
+    public enum BotState
+    {
+       // Greetings,
+        WorldSideChoise,
+        CountryQuestion,
+        CountryGuessing,
+    }
+    // Main class
     class BotManager
     {
-        private const string hostDataPath = @"D:\countries";
+        private const string hostDataPath = @"..\..\..\countries";
         // Client
         private static ITelegramBotClient client { get; set; }
 
         // WorldSide
-        private struct WorldSideData
+        private struct KeyLocalization
         {
-            public WorldSideData(WorldSideKey key, string name)
+            public KeyLocalization(WorldSideKey key, string name)
             {
                 this.key = key;
                 this.rus_name = name;
             }
 
-            public WorldSideKey key;
-            public string rus_name;
+            public WorldSideKey key { get; set; }
+            public string rus_name { get; set; }
         }
-        public enum WorldSideKey
-        {
-            World,
-            Europe,
-            Asia,
-            Africa,
-            NorthAmerica,
-            SouthAmerica,
-            Oceania,
-        }
-
-        //State
-        public enum BotState
-        {
-            Greetings,
-            WorldSideChoise,
-            CountryQuestion,
-            CountryGuessing,
-        }
-
+       
         // Lists
 
-        private static List<WorldSideData> WorldSideNamesForKeys;
+        private static List<KeyLocalization> keyLocalizations { get; set; }
 
-        public static Dictionary<WorldSideKey, Dictionary<string, CountryData>> World;
+        public static Dictionary<WorldSideKey, Dictionary<string, CountryData>> world { get; set; }
         public BotManager(string telegramToken)
         {
             client = new TelegramBotClient(telegramToken);
 
-            WorldSideNamesForKeys = new List<WorldSideData>();
-            WorldSideNamesForKeys.Add(new WorldSideData(WorldSideKey.World, "Мир"));
-            WorldSideNamesForKeys.Add(new WorldSideData(WorldSideKey.Europe, "Европа"));
-            WorldSideNamesForKeys.Add(new WorldSideData(WorldSideKey.Asia, "Азия"));
-            WorldSideNamesForKeys.Add(new WorldSideData(WorldSideKey.Africa, "Африка"));
-            WorldSideNamesForKeys.Add(new WorldSideData(WorldSideKey.NorthAmerica, "Северная Америка"));
-            WorldSideNamesForKeys.Add(new WorldSideData(WorldSideKey.SouthAmerica, "Южная Америка"));
-            WorldSideNamesForKeys.Add(new WorldSideData(WorldSideKey.Oceania, "Океания"));
+            keyLocalizations = new List<KeyLocalization>();
+            keyLocalizations.Add(new KeyLocalization(WorldSideKey.World, "Мир"));
+            keyLocalizations.Add(new KeyLocalization(WorldSideKey.Europe, "Европа"));
+            keyLocalizations.Add(new KeyLocalization(WorldSideKey.Asia, "Азия"));
+            keyLocalizations.Add(new KeyLocalization(WorldSideKey.Africa, "Африка"));
+            keyLocalizations.Add(new KeyLocalization(WorldSideKey.NorthAmerica, "Северная Америка"));
+            keyLocalizations.Add(new KeyLocalization(WorldSideKey.SouthAmerica, "Южная Америка"));
+            keyLocalizations.Add(new KeyLocalization(WorldSideKey.Oceania, "Океания"));
 
 
-            World = new Dictionary<WorldSideKey, Dictionary<string, CountryData>>();
+            world = new Dictionary<WorldSideKey, Dictionary<string, CountryData>>();
 
             foreach (WorldSideKey key in Enum.GetValues(typeof(WorldSideKey)))
             {
                 if (key != WorldSideKey.World)
                 {
-                    string path = $"{hostDataPath}/{key}.txt";
+                    string path = @$"{hostDataPath}\{key}.txt";
                     var dict = CsvParser.GetCountriesFromFile(path);
-                    World.Add(key, dict);
+                    world.Add(key, dict);
                 }
             }
         }
@@ -85,6 +86,35 @@ namespace CountryBot
             client.StartReceiving(HandleUpdateAsync, Error);
 
             Console.ReadLine();
+        }
+
+        // Work methods
+        private static WorldSideKey getWeightedRandomKey(long id)
+        {
+            WorldSideKey result = WorldSideKey.Europe; // Просто начальное значение
+
+            var chanceparams = new List<WeightedChanceParam>();
+
+            var userRemainingIndexes = BotUsers.getremainingIndexes(id);
+
+            foreach (WorldSideKey key in Enum.GetValues(typeof(WorldSideKey)))
+            {
+                if (key != WorldSideKey.World)
+                {
+                    int weight = userRemainingIndexes[key].Count();
+
+                    if (weight != 0)
+                    {
+                        chanceparams.Add(new WeightedChanceParam(() => result = key, weight));
+                    }
+                }
+            }
+
+            WeightedChanceExecutor weightedChanceExecutor = new WeightedChanceExecutor(chanceparams);
+
+            weightedChanceExecutor.Execute();
+
+            return result;
         }
         private static IReplyMarkup GetReplyMarkup(List<string> options)
         {
@@ -126,7 +156,7 @@ namespace CountryBot
         {
             List<string> options = new List<string>();
 
-            foreach (var side in WorldSideNamesForKeys)
+            foreach (var side in keyLocalizations)
             {
                 options.Add(side.rus_name);
             }
@@ -141,7 +171,7 @@ namespace CountryBot
             Console.WriteLine("Вы ввели: " + message.Text);
             long id = message.Chat.Id;
 
-            foreach (var side in WorldSideNamesForKeys)
+            foreach (var side in keyLocalizations)
             {
                 Console.WriteLine("side.rus_name: " + side.rus_name);
                 if (side.rus_name == message.Text)
@@ -152,7 +182,7 @@ namespace CountryBot
 
                     BotUsers.UpdateUserState(id, BotState.CountryQuestion);
 
-                    BotUsers.InitUserRemainingDictionary(id, side.key);
+                    BotUsers.InitUserRemainingDictionary(id, side.key, world);
 
                     await botClient.SendTextMessageAsync(id, "Я говорю страну, ты столицу", replyMarkup: new ReplyKeyboardRemove());
 
@@ -163,34 +193,7 @@ namespace CountryBot
 
             await botClient.SendTextMessageAsync(id, "Не понял)");
             ConsoleErrorOutput(message);
-        }
-        private static WorldSideKey getWeightedRandomKey(long id)
-        {
-            WorldSideKey result = WorldSideKey.Europe; // Просто начальное значение
-
-            var chanceparams = new List<WeightedChanceParam>();
-
-            var userRemainingIndexes = BotUsers.getremainingIndexes(id);
-
-            foreach (WorldSideKey key in Enum.GetValues(typeof(WorldSideKey)))
-            {
-                if (key != WorldSideKey.World)
-                {
-                    int weight = userRemainingIndexes[key].Count();
-
-                    if (weight != 0)
-                    {
-                        chanceparams.Add(new WeightedChanceParam(() => result = key, weight));
-                    } 
-                }
-            }
-
-            WeightedChanceExecutor weightedChanceExecutor = new WeightedChanceExecutor(chanceparams);
-     
-            weightedChanceExecutor.Execute();
-
-            return result;
-        }
+        }   
         private async static Task ProcessCountryQuestion(ITelegramBotClient botClient, long id)
         {
             WorldSideKey currKey = BotUsers.getWorldSideKey(id);
@@ -211,7 +214,7 @@ namespace CountryBot
 
             int origElementPos = userRemainingIndexes[currKey][randomRemainingIndex];
 
-            string country = World[currKey].ElementAt(origElementPos).Key;
+            string country = world[currKey].ElementAt(origElementPos).Key;
 
             BotUsers.UpdateGuessIndex(id, origElementPos);
 
@@ -239,7 +242,7 @@ namespace CountryBot
 
             int userExpectedIndex = BotUsers.getguessIndex(id);
 
-            string userExpectedAnswer = World[currKey].ElementAt(userExpectedIndex).Value.capital;
+            string userExpectedAnswer = world[currKey].ElementAt(userExpectedIndex).Value.capital;
 
             if(message.Text != userExpectedAnswer)
             {
@@ -272,31 +275,37 @@ namespace CountryBot
         // Main handler
         private async static Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
         {
-            if (update.Type == Telegram.Bot.Types.Enums.UpdateType.Message && update.Message.Text != null)
+            try
             {
-                long id = update.Message.Chat.Id;
+                if (update.Type == Telegram.Bot.Types.Enums.UpdateType.Message && update.Message.Text != null)
+                {
+                    long id = update.Message.Chat.Id;
 
-                if (!BotUsers.UserContainsKey(id))
-                {
-                    //update.Message.Text = "/start";
-                    await ProcessGreetings(botClient, update, cancellationToken);
-                }
-                else
-                {
-                    switch (BotUsers.getBotState(id))
+                    if (!BotUsers.UserContainsKey(id))
                     {
-                        case BotState.WorldSideChoise:
-                            await ProcessWorldSideChoose(botClient, update, cancellationToken);
-                            break;
-                        case BotState.CountryGuessing:
-                            await ProcessCountryGuessing(botClient, update, cancellationToken);
-                            break;
-                        case BotState.CountryQuestion:
-                            await ProcessCountryQuestion(botClient, id);
-                            break;
+                        await ProcessGreetings(botClient, update, cancellationToken);
+                    }
+                    else
+                    {
+                        switch (BotUsers.getBotState(id))
+                        {
+                            case BotState.WorldSideChoise:
+                                await ProcessWorldSideChoose(botClient, update, cancellationToken);
+                                break;
+                            case BotState.CountryGuessing:
+                                await ProcessCountryGuessing(botClient, update, cancellationToken);
+                                break;
+                            case BotState.CountryQuestion:
+                                await ProcessCountryQuestion(botClient, id);
+                                break;
+                        }
                     }
                 }
+            } catch (Exception e)
+            {
+                Console.WriteLine($"Error: {e.Message} | Chat id: {update.Message.Chat.Id}");
             }
+            
         }
 
         // Work with errors

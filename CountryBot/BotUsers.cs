@@ -1,36 +1,61 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using static CountryBot.BotManager;
 
 namespace CountryBot
 {
     static class BotUsers
     {
-        private class UserData
+        public class UserData
         {
-            public BotState state;
+            public BotState state { get; set; }
 
-            public WorldSideKey sideKey;
+            public WorldSideKey sideKey { get; set; }
 
-            public WorldSideKey tempSideKey;
+            public WorldSideKey tempSideKey { get; set; }
 
-            public int guessIndex = 0;
+            public int guessIndex { get; set; }
 
-            public Dictionary<WorldSideKey, List<int>> remainingIndexes = new Dictionary<WorldSideKey, List<int>>();
+            public Dictionary<WorldSideKey, List<int>> remainingIndexes { get; set; }
+
+            public UserData()
+            {
+                state = BotState.WorldSideChoise;
+                sideKey = WorldSideKey.World;
+                tempSideKey = WorldSideKey.World;
+                guessIndex = 0;
+                remainingIndexes = new Dictionary<WorldSideKey, List<int>>();
+            }
         }
+        static BotUsers()
+        {
+            Users = new Dictionary<long, UserData>();
+        }
+          
+        // Users futture DB
+        public static Dictionary<long, UserData> Users { get; set; }
 
-        private static Dictionary<long, UserData> Users = new Dictionary<long, UserData>();
-
+        // Access methods
         public static void InitUser(long id)
         {
-            Users.Add(id, new UserData());
+            if (!Users.ContainsKey(id))
+            {
+                Users.Add(id, new UserData());
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id already exists");
+            }
+            
         }
         public static void UpdateUserState(long id, BotState state)
         {
             if (Users.ContainsKey(id))
             {
                 Users[id].state = state;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
             }
         }
         public static void UpdateUserTempSideKey(long id, WorldSideKey key)
@@ -39,12 +64,20 @@ namespace CountryBot
             {
                 Users[id].tempSideKey = key;
             }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
+            }
         }
         public static void UpdateUserWorldSideKey(long id, WorldSideKey key)
         {
             if (Users.ContainsKey(id))
             {
                 Users[id].sideKey = key;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
             }
         }
         public static void UpdateUserIndexDictionary(long id, Dictionary<WorldSideKey, List<int>> dictioanry)
@@ -53,52 +86,71 @@ namespace CountryBot
             {
                 Users[id].remainingIndexes = dictioanry;
             }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
+            }
         }
         public static void ClearUserRemainingDictionary(long id)
         {
-            var newDictionary = new Dictionary<WorldSideKey, List<int>>();
-
-            UpdateUserIndexDictionary(id, newDictionary);
-
-            Users[id].guessIndex = 0;
-        }
-        public static void InitUserRemainingDictionary(long id, WorldSideKey key)
-        {
-            var newDictionary = new Dictionary<WorldSideKey, List<int>>();
-
-            if (key == WorldSideKey.World)
+            if (Users.ContainsKey(id))
             {
-                foreach (WorldSideKey sidekey in Enum.GetValues(typeof(WorldSideKey)))
-                {
-                    if(sidekey != WorldSideKey.World)
-                    {
-                        List<int> uniqueIndexes = new List<int>();
+                var newDictionary = new Dictionary<WorldSideKey, List<int>>();
 
-                        for (int i = 0; i < BotManager.World[sidekey].Count; i++)
-                        {
-                            uniqueIndexes.Add(i);
-                        }
+                UpdateUserIndexDictionary(id, newDictionary);
 
-                        newDictionary.Add(sidekey, uniqueIndexes);
-                    }
-                
-                }
+                Users[id].guessIndex = 0;
             }
             else
             {
-                List<int> uniqueIndexes = new List<int>();
+                throw new ArgumentOutOfRangeException("Id not found");
+            }
+           
+        }
+        public static void InitUserRemainingDictionary(long id, WorldSideKey key, Dictionary<WorldSideKey, Dictionary<string, CountryData>> World)
+        {
+            if (Users.ContainsKey(id))
+            {
+                var newDictionary = new Dictionary<WorldSideKey, List<int>>();
 
-                for (int i = 0; i < World[key].Count; i++)
+                if (key == WorldSideKey.World)
                 {
-                    uniqueIndexes.Add(i);
+                    foreach (WorldSideKey sidekey in Enum.GetValues(typeof(WorldSideKey)))
+                    {
+                        if (sidekey != WorldSideKey.World)
+                        {
+                            List<int> uniqueIndexes = new List<int>();
+
+                            for (int i = 0; i < World[sidekey].Count; i++)
+                            {
+                                uniqueIndexes.Add(i);
+                            }
+
+                            newDictionary.Add(sidekey, uniqueIndexes);
+                        }
+
+                    }
+                }
+                else
+                {
+                    List<int> uniqueIndexes = new List<int>();
+
+                    for (int i = 0; i < World[key].Count; i++)
+                    {
+                        uniqueIndexes.Add(i);
+                    }
+
+                    newDictionary.Add(key, uniqueIndexes);
                 }
 
-                newDictionary.Add(key, uniqueIndexes);
+                Users[id].guessIndex = 0;
+
+                UpdateUserIndexDictionary(id, newDictionary);
             }
-
-            Users[id].guessIndex = 0;
-
-            UpdateUserIndexDictionary(id, newDictionary);
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
+            }  
         }
         public static void UpdateGuessIndex(long id, int index)
         {
@@ -106,27 +158,66 @@ namespace CountryBot
             {
                 Users[id].guessIndex = index;
             }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
+            }
         }
 
         public static BotState getBotState(long id)
         {
-            return Users[id].state;
+            if (Users.ContainsKey(id))
+            {
+                return Users[id].state;
+            } else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
+            }
+  
         }
         public static WorldSideKey getWorldSideKey(long id)
         {
-            return Users[id].sideKey;
+            if (Users.ContainsKey(id))
+            {
+                return Users[id].sideKey;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
+            }    
         }
         public static WorldSideKey getTempWorldSideKey(long id)
         {
-            return Users[id].tempSideKey;
+            if (Users.ContainsKey(id))
+            {
+                return Users[id].tempSideKey;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
+            }    
         }
         public static int getguessIndex(long id)
         {
-            return Users[id].guessIndex;
+            if (Users.ContainsKey(id))
+            {
+                return Users[id].guessIndex;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
+            }   
         }
         public static Dictionary<WorldSideKey, List<int>> getremainingIndexes(long id)
         {
-            return Users[id].remainingIndexes;
+            if (Users.ContainsKey(id))
+            {
+                return Users[id].remainingIndexes;
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException("Id not found");
+            }  
         }
         public static bool UserContainsKey(long id)
         {

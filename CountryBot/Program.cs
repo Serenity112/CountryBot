@@ -6,7 +6,7 @@ namespace CountryBot
     {
         static void Main(string[] args)
         {
-            string token  = "xxx";
+            string token  = "5723619088:AAHNrrTUIQ9cmoC70dEWZhnv_l-vhGfQGnA";
 
             var bot = new BotManager(token);
 
